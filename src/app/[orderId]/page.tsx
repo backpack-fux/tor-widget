@@ -39,7 +39,11 @@ async function getOrderData(orderId: string): Promise<OrderData | null> {
   return safeOrderData;
 }
 
-async function processPayment(orderId: string, paymentDetails: any) {
+async function processPayment(
+  orderId: string,
+  paymentDetails: any,
+  paymentToken: string
+) {
   const orderData = await getOrderData(orderId);
   if (!orderData) {
     throw new Error("Order not found");
@@ -50,7 +54,7 @@ async function processPayment(orderId: string, paymentDetails: any) {
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.API_JWT_TOKEN}`,
+        Authorization: `Bearer ${paymentToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -66,7 +70,6 @@ async function processPayment(orderId: string, paymentDetails: any) {
 
   return await response.json();
 }
-
 export default async function PaymentPage({
   params,
 }: {
@@ -82,7 +85,6 @@ export default async function PaymentPage({
   const now = new Date();
 
   if (now > expiresAt) {
-    // If the order has expired, invalidate the cache and redirect
     revalidateTag(`order-${params.orderId}`);
     return {
       redirect: {
@@ -94,7 +96,15 @@ export default async function PaymentPage({
 
   async function handlePayment(paymentDetails: any) {
     "use server";
-    return processPayment(params.orderId, paymentDetails);
+    const fullOrderData = await getOrderData(params.orderId);
+    if (!fullOrderData || !("paymentToken" in fullOrderData)) {
+      throw new Error("Unable to process payment: missing payment token");
+    }
+    return processPayment(
+      params.orderId,
+      paymentDetails,
+      fullOrderData.paymentToken
+    );
   }
 
   return <Checkout orderData={orderData} onPayment={handlePayment} />;
