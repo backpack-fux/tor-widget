@@ -1,6 +1,7 @@
 import "@/styles/globals.css";
 import clsx from "clsx";
 import { Metadata, Viewport } from "next";
+import Link from "next/link";
 
 import { Providers } from "./providers";
 
@@ -36,12 +37,17 @@ export default function RootLayout({
       <body
         className={clsx(
           "min-h-screen bg-background font-sans antialiased",
-          fontSans.variable,
+          fontSans.variable
         )}
       >
         <Providers themeProps={{ attribute: "class", defaultTheme: "dark" }}>
           <div className="relative flex flex-col h-screen">
-            <main className="container mx-auto max-w-7xl pt-16 px-6 flex-grow">
+            <nav className="p-4">
+              <Link href="/order" className="text-blue-500 hover:underline">
+                Enter Order ID
+              </Link>
+            </nav>
+            <main className="container mx-auto max-w-7xl py-16 px-6 flex-grow content-center">
               {children}
             </main>
           </div>

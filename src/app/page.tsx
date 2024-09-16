@@ -1,11 +1,13 @@
-import BlankCard from "@/components/cards/blank-card";
+import { OrderInput } from "@/components/home/order-input";
+import { Card } from "@nextui-org/card";
 
-export default function Home() {
+export default function OrderPage() {
   return (
-    <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
-      <div className="inline-block max-w-lg text-center justify-center" />
-      <BlankCard />
-      <div className="mt-8" />
-    </section>
+    <div className="flex items-center justify-center">
+      <Card className="p-24 px-24 text-center">
+        <h1 className="text-2xl font-bold mb-4">Enter Order ID</h1>
+        <OrderInput />
+      </Card>
+    </div>
   );
 }
