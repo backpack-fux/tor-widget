@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Input } from "@nextui-org/input";
 import valid from "card-validator";
 
-type CardDetails = {
+export type CardDetails = {
   name: string;
   number: string;
   expiration: string;
@@ -77,25 +77,26 @@ export default function CardDetailsForm({ onCardChange }: Props) {
   };
 
   const formatCardNumber = (value: string) => {
-    const v = value.replace(/\s+/g, "").replace(/[^0-9]/gi, "");
-    const matches = v.match(/\d{4,16}/g);
-    const match = (matches && matches[0]) || "";
+    const v = value.replace(/\D/g, "").slice(0, 16);
     const parts = [];
 
-    for (let i = 0, len = match.length; i < len; i += 4) {
-      parts.push(match.substring(i, i + 4));
+    for (let i = 0; i < v.length; i += 4) {
+      parts.push(v.slice(i, i + 4));
     }
 
-    if (parts.length) {
-      return parts.join(" ");
-    } else {
-      return value;
-    }
+    return {
+      formatted: parts.join(" "),
+      raw: v,
+    };
   };
 
   const formatCvv = (value: string, cardNumber: string) => {
-    const maxLength = valid.number(cardNumber).card?.code?.size;
-    return value.slice(0, maxLength);
+    const cleanValue = value.replace(/\D/g, "");
+
+    const cardType = valid.number(cardNumber).card;
+    const maxLength = cardType ? cardType.code.size : 3;
+
+    return cleanValue.slice(0, maxLength);
   };
 
   const formatExpirationDate = (value: string) => {
@@ -108,23 +109,28 @@ export default function CardDetailsForm({ onCardChange }: Props) {
   const handleChange =
     (field: keyof CardDetails) => (e: React.ChangeEvent<HTMLInputElement>) => {
       let value = e.target.value;
-      if (field === "name") {
-        if (isValidName(value)) {
+      switch (field) {
+        case "name":
+          if (isValidName(value)) {
+            setCard({ ...card, [field]: value });
+          }
+          break;
+        case "number":
+          value = formatCardNumber(value).formatted;
           setCard({ ...card, [field]: value });
-        }
-      } else if (field === "number") {
-        value = formatCardNumber(value);
-        setCard({ ...card, [field]: value });
-      } else if (field === "expiration") {
-        const formattedValue = formatExpirationDate(value);
-        if (formattedValue !== card.expiration) {
-          setCard({ ...card, [field]: formattedValue });
-        }
-      } else if (field === "cvv") {
-        value = formatCvv(value, card.number);
-        setCard({ ...card, [field]: value });
-      } else {
-        setCard({ ...card, [field]: value });
+          break;
+        case "expiration":
+          const formattedValue = formatExpirationDate(value);
+          if (formattedValue !== card.expiration) {
+            setCard({ ...card, [field]: formattedValue });
+          }
+          break;
+        case "cvv":
+          value = formatCvv(value, card.number);
+          setCard({ ...card, [field]: value });
+          break;
+        default:
+          setCard({ ...card, [field]: value });
       }
     };
 

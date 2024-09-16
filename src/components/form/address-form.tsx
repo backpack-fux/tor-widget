@@ -5,6 +5,7 @@ import {
   AutocompleteSection,
   AutocompleteItem,
 } from "@nextui-org/autocomplete";
+import { Address } from "@/pylon/types";
 
 const states = [
   { value: "AL", label: "Alabama" },
@@ -52,34 +53,38 @@ const states = [
 
 type AddressFormProps = {
   title: string;
-  address: {
-    name: string;
-    address: string;
-    city: string;
-    state: string;
-    zip: string;
-  };
+  address: Address;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onStateChange: (value: string) => void;
 };
 
 export default function AddressForm({
   title,
   address,
   onChange,
+  onStateChange,
 }: AddressFormProps) {
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">{title}</h3>
-      <Input
-        label="Full Name"
-        name="name"
-        value={address.name}
-        onChange={onChange}
-      />
+      <div className="grid grid-cols-2 gap-4">
+        <Input
+          label="First Name"
+          name="firstName"
+          value={address.firstName}
+          onChange={onChange}
+        />
+        <Input
+          label="Last Name"
+          name="lastName"
+          value={address.lastName}
+          onChange={onChange}
+        />
+      </div>
       <Input
         label="Address"
-        name="address"
-        value={address.address}
+        name="address1"
+        value={address.address1}
         onChange={onChange}
       />
       <div className="grid grid-cols-3 gap-4">
@@ -89,7 +94,11 @@ export default function AddressForm({
           value={address.city}
           onChange={onChange}
         />
-        <Autocomplete label="State" className="max-w-xs" onChange={onChange}>
+        <Autocomplete
+          label="State"
+          selectedKey={address.state}
+          onSelectionChange={(key) => onStateChange(key as string)}
+        >
           {states.map((state) => (
             <AutocompleteItem key={state.value} value={state.value}>
               {state.label}
@@ -98,8 +107,8 @@ export default function AddressForm({
         </Autocomplete>
         <Input
           label="ZIP Code"
-          name="zip"
-          value={address.zip}
+          name="postalCode"
+          value={address.postalCode}
           onChange={onChange}
         />
       </div>

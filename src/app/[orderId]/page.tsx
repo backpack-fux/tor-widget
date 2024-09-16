@@ -1,85 +1,37 @@
 import { notFound } from "next/navigation";
 import Checkout from "./checkout";
 import { revalidateTag } from "next/cache";
+import { getOrderLink, processTransaction } from "@/pylon/apis";
+import {
+  GetOrderLinkOutput,
+  TransactionProcessInputPreProcessed,
+  TransactionProcessInputProcessed,
+} from "@/pylon/types";
+import { CardSessionInput, createCardSession } from "@/worldpay/apis";
 
-export type OrderData = {
-  merchant: {
-    name: string;
-    fee: string; // in percentage
-  };
-  customer: {
-    email: string;
-    phone: string;
-  };
-  order: {
-    subtotal: number;
-    currency: string;
-  };
-  expiresAt: string;
-  paymentToken: string;
-};
-
-async function getOrderData(orderId: string): Promise<OrderData | null> {
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/v1/transaction/link/${orderId}`,
-    {
-      next: {
-        revalidate: 0, // This ensures the data is always fresh on first load
-        tags: [`order-${orderId}`], // This allows us to invalidate the cache when needed
-      },
-    }
-  );
-  if (!response.ok) {
+async function getOrderData(
+  orderId: string
+): Promise<GetOrderLinkOutput | null> {
+  try {
+    const data = await getOrderLink(orderId);
+    return data.data;
+  } catch (error) {
+    console.error("Error fetching order:", error);
     return null;
   }
-  const data = await response.json();
-
-  // Remove sensitive data (i.e. paymentToken) before passing to the client
-  const { paymentToken, ...safeOrderData } = data.data;
-  return safeOrderData;
 }
 
-async function processPayment(
-  orderId: string,
-  paymentDetails: any,
-  paymentToken: string
-) {
-  const orderData = await getOrderData(orderId);
-  if (!orderData) {
-    throw new Error("Order not found");
-  }
-
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/v1/transaction/process`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${paymentToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        orderId,
-        paymentDetails,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error("Payment processing failed");
-  }
-
-  return await response.json();
-}
 export default async function PaymentPage({
   params,
 }: {
   params: { orderId: string };
 }) {
   const orderData = await getOrderData(params.orderId);
-
   if (!orderData) {
     notFound();
   }
+
+  const { paymentToken, ...remainingOrderData } = orderData;
 
   const expiresAt = new Date(orderData.expiresAt);
   const now = new Date();
@@ -94,18 +46,51 @@ export default async function PaymentPage({
     };
   }
 
-  async function handlePayment(paymentDetails: any) {
+  async function handlePayment(
+    paymentDetails: TransactionProcessInputPreProcessed
+  ) {
     "use server";
-    const fullOrderData = await getOrderData(params.orderId);
-    if (!fullOrderData || !("paymentToken" in fullOrderData)) {
+
+    const worldpayIdentity = process.env.WORLDPAY_IDENTITY;
+    if (!worldpayIdentity) {
       throw new Error("Unable to process payment: missing payment token");
     }
-    return processPayment(
-      params.orderId,
-      paymentDetails,
-      fullOrderData.paymentToken
+
+    const cardDetails: CardSessionInput = {
+      identity: worldpayIdentity,
+      cardNumber: paymentDetails.order.card.number,
+      cardExpiryDate: {
+        month: paymentDetails.order.card.expiryMonth,
+        year: parseInt(`20${paymentDetails.order.card.expiryYear}`),
+      },
+      cvc: paymentDetails.order.card.cvv,
+    };
+
+    // Call Worldpay API to create card session
+    const sessionUrl = await createCardSession(cardDetails);
+    if (!sessionUrl) {
+      throw new Error("Unable to process payment: missing session url");
+    }
+
+    const { card, ...order } = paymentDetails.order;
+
+    const processedPaymentDetails: TransactionProcessInputProcessed = {
+      sessionUrl,
+      order,
+    };
+
+    // Call Pylon API to process transaction
+    const result = await processTransaction(
+      paymentDetails.paymentProcessor,
+      processedPaymentDetails,
+      paymentToken
     );
+
+    if (result) {
+      return true;
+    }
+    return false;
   }
 
-  return <Checkout orderData={orderData} onPayment={handlePayment} />;
+  return <Checkout orderData={remainingOrderData} onPayment={handlePayment} />;
 }

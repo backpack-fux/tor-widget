@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Modal, ModalContent } from "@nextui-org/modal";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@nextui-org/button";
 import { Progress } from "@nextui-org/progress";
 
@@ -10,6 +10,8 @@ type SuccessModalProps = {
   onClose: () => void;
   title: string;
   message: string;
+  isLoading: boolean;
+  isSuccess: boolean;
   fadeOutOpts: {
     autoFadeOut?: boolean;
     fadeoutTime?: number;
@@ -21,6 +23,8 @@ export default function SuccessForm({
   onClose,
   title,
   message,
+  isSuccess,
+  isLoading,
   fadeOutOpts: { autoFadeOut = false, fadeoutTime = 3000 },
 }: SuccessModalProps) {
   const [progress, setProgress] = useState(100);
@@ -50,7 +54,7 @@ export default function SuccessForm({
     <AnimatePresence>
       {isOpen && (
         <Modal
-          isOpen={isOpen}
+          isOpen={isOpen && !isLoading}
           onClose={onClose}
           size="sm"
           classNames={{
@@ -79,7 +83,11 @@ export default function SuccessForm({
                     damping: 10,
                   }}
                 >
-                  <CheckCircle className="w-16 h-16 text-green-500 mb-4" />
+                  {isSuccess ? (
+                    <CheckCircle className="w-16 h-16 text-green-500 mb-4" />
+                  ) : (
+                    <XCircle className="w-16 h-16 text-red-500 mb-4" />
+                  )}
                 </motion.div>
                 <motion.h2
                   initial={{ opacity: 0, y: 20 }}

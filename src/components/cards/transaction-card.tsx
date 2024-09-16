@@ -61,7 +61,7 @@ export default function TransactionCard() {
                 placeholder="Enter state or province"
               />
               <Input label="Postal Code" placeholder="Enter postal code" />
-              <Input label="Country" placeholder="Enter country" />
+              <Input label="Country" placeholder="Enter countryCode" />
             </div>
           </AccordionItem>
         </Accordion>

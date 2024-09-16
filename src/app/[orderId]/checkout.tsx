@@ -8,37 +8,53 @@ import { RadioGroup, Radio, useRadio, RadioProps } from "@nextui-org/radio";
 import { Button } from "@nextui-org/button";
 import { Divider } from "@nextui-org/divider";
 import { InfoIcon } from "lucide-react";
-import { OrderData } from "./page";
 import { useRouter } from "next/navigation";
 import { Tooltip } from "@nextui-org/tooltip";
 import { Slider } from "@nextui-org/slider";
 
-import CardDetailsForm from "@/components/form/card-details-form";
+import CardDetailsForm, {
+  CardDetails,
+} from "@/components/form/card-details-form";
 import AddressForm from "@/components/form/address-form";
 import SuccessForm from "@/components/form/success-form";
+import {
+  GetOrderLinkOutput,
+  TransactionProcessInputPreProcessed,
+  Address,
+  ISO3166Alpha2Country,
+  PaymentProcessor,
+} from "@/pylon/types";
+import LoadingOverlay from "@/components/loading";
 
 export default function Checkout({
   orderData,
   onPayment,
 }: {
-  orderData: OrderData;
-  onPayment: (paymentDetails: any) => Promise<void>;
+  orderData: Omit<GetOrderLinkOutput, "paymentToken">;
+  onPayment: (
+    paymentDetails: TransactionProcessInputPreProcessed
+  ) => Promise<boolean>;
 }) {
   const [paymentMethod, setPaymentMethod] = useState("card");
   const [isCardValid, setIsCardValid] = useState(false);
-  const [shippingAddress, setShippingAddress] = useState({
-    name: "",
-    address: "",
+  const [cardDetails, setCardDetails] = useState<CardDetails | null>(null);
+  const [shippingAddress, setShippingAddress] = useState<Address>({
+    firstName: "",
+    lastName: "",
+    address1: "",
     city: "",
     state: "",
-    zip: "",
+    postalCode: "",
+    countryCode: "US" as ISO3166Alpha2Country,
   });
-  const [billingAddress, setBillingAddress] = useState({
-    name: "",
-    address: "",
+  const [billingAddress, setBillingAddress] = useState<Address>({
+    firstName: "",
+    lastName: "",
+    address1: "",
     city: "",
     state: "",
-    zip: "",
+    postalCode: "",
+    countryCode: "US" as ISO3166Alpha2Country,
   });
   const [sameAsShipping, setSameAsShipping] = useState(true);
   const [addressMismatchAcknowledged, setAddressMismatchAcknowledged] =
@@ -47,7 +63,10 @@ export default function Checkout({
   const [tipAmount, setTipAmount] = useState<number>(0);
   const router = useRouter();
   const [timeLeft, setTimeLeft] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isOrderPlaced, setIsOrderPlaced] = useState(false);
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+  const [isOrderSuccess, setIsOrderSuccess] = useState(false);
 
   useEffect(() => {
     const expiresAt = new Date(orderData.expiresAt);
@@ -75,54 +94,116 @@ export default function Checkout({
     );
   }, [orderData.order.subtotal]);
 
+  useEffect(() => {
+    if (isOrderPlaced || isOrderSuccess) {
+      const timer = setTimeout(() => {
+        router.push("/");
+      }, 15_000); // 15 seconds
+
+      return () => clearTimeout(timer); // Cleanup the timer if the component unmounts
+    }
+  }, [isOrderPlaced, isOrderSuccess]);
+
+  const handleStateChange =
+    (addressType: "shipping" | "billing") => (value: string) => {
+      if (addressType === "shipping") {
+        setShippingAddress((prev) => ({ ...prev, state: value }));
+        if (sameAsShipping) {
+          setBillingAddress((prev) => ({ ...prev, state: value }));
+        }
+      } else {
+        setBillingAddress((prev) => ({ ...prev, state: value }));
+      }
+    };
+
   const handleShippingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setShippingAddress({ ...shippingAddress, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setShippingAddress((prev) => ({ ...prev, [name]: value }));
     if (sameAsShipping) {
-      setBillingAddress({ ...billingAddress, [e.target.name]: e.target.value });
+      setBillingAddress((prev) => ({ ...prev, [name]: value }));
     }
   };
 
   const handleBillingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setBillingAddress({ ...billingAddress, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setBillingAddress((prev) => ({ ...prev, [name]: value }));
   };
 
   const handlePlaceOrder = async () => {
     if (paymentMethod === "card" && !isCardValid) {
       console.log("Please correct the card information");
     } else {
+      setIsLoading(true);
+      setIsOrderPlaced(true);
       try {
-        const paymentDetails = {
-          // Collect necessary payment details
-          method: paymentMethod,
-          card:
-            paymentMethod === "card"
-              ? {
-                  /* card details */
-                }
-              : undefined,
-          shippingAddress,
-          billingAddress: sameAsShipping ? shippingAddress : billingAddress,
-          tipAmount,
-          total: orderData.order.subtotal + serviceFee + tipAmount,
+        const paymentDetails: TransactionProcessInputPreProcessed = {
+          paymentProcessor: "WORLDPAY" as PaymentProcessor,
+          order: {
+            customer: {
+              email: orderData.customer.email,
+              phoneNumber: orderData.customer.phone,
+              shippingAddress: {
+                firstName: shippingAddress.firstName,
+                lastName: shippingAddress.lastName,
+                city: shippingAddress.city,
+                state: shippingAddress.state,
+                address1: shippingAddress.address1,
+                postalCode: shippingAddress.postalCode,
+                countryCode: shippingAddress.countryCode,
+              },
+              billingAddress: sameAsShipping ? shippingAddress : billingAddress,
+            },
+            value: {
+              currency: orderData.order.currency,
+              tipAmount,
+              total: orderData.order.subtotal + serviceFee + tipAmount,
+            },
+            card: {
+              name: cardDetails?.name ?? "",
+              number: cardDetails?.number.replace(/\s/g, "") ?? "",
+              expiryYear: parseInt(
+                cardDetails?.expiration?.split("/")[1] ?? ""
+              ),
+              expiryMonth: parseInt(
+                cardDetails?.expiration?.split("/")[0] ?? ""
+              ),
+              cvv: cardDetails?.cvv ?? "",
+            },
+          },
         };
 
         const result = await onPayment(paymentDetails);
-        console.log("Order placed successfully", result);
-        setIsSuccessOpen(true);
+        setIsOrderSuccess(result);
+
+        if (result) {
+          setIsSuccessOpen(true);
+          setIsOrderPlaced(true);
+        } else {
+          setIsOrderPlaced(false);
+        }
       } catch (error) {
         console.error("Failed to place order", error);
-        // Handle error (show error message to user)
+        setIsOrderSuccess(false);
+        setIsOrderPlaced(false);
+      } finally {
+        setIsLoading(false);
       }
     }
   };
 
+  const handleCardChange = (card: CardDetails, isValid: boolean) => {
+    setCardDetails(card);
+    setIsCardValid(isValid);
+  };
+
   const addressesDiffer =
     !sameAsShipping &&
-    (shippingAddress.name !== billingAddress.name ||
-      shippingAddress.address !== billingAddress.address ||
+    (shippingAddress.firstName !== billingAddress.firstName ||
+      shippingAddress.lastName !== billingAddress.lastName ||
+      shippingAddress.address1 !== billingAddress.address1 ||
       shippingAddress.city !== billingAddress.city ||
       shippingAddress.state !== billingAddress.state ||
-      shippingAddress.zip !== billingAddress.zip);
+      shippingAddress.postalCode !== billingAddress.postalCode);
 
   const subTotal = orderData.order.subtotal;
   const serviceFee =
@@ -131,6 +212,7 @@ export default function Checkout({
 
   return (
     <Card className="max-w-3xl mx-auto p-4 px-4">
+      {isLoading && <LoadingOverlay />}
       <div className="bg-yellow-100 p-2 rounded-t-md text-sm text-yellow-700 flex items-center justify-center">
         <Tooltip
           showArrow={true}
@@ -184,6 +266,7 @@ export default function Checkout({
           title="Shipping Information"
           address={shippingAddress}
           onChange={handleShippingChange}
+          onStateChange={handleStateChange("shipping")}
         />
 
         <Checkbox isSelected={sameAsShipping} onValueChange={setSameAsShipping}>
@@ -195,6 +278,7 @@ export default function Checkout({
             title="Billing Information"
             address={billingAddress}
             onChange={handleBillingChange}
+            onStateChange={handleStateChange("billing")}
           />
         )}
 
@@ -240,11 +324,7 @@ export default function Checkout({
         </div>
 
         {paymentMethod === "card" && (
-          <CardDetailsForm
-            onCardChange={(_, isValid) => {
-              setIsCardValid(isValid);
-            }}
-          />
+          <CardDetailsForm onCardChange={handleCardChange} />
         )}
 
         <Divider />
@@ -317,6 +397,7 @@ export default function Checkout({
           <Button
             color="primary"
             isDisabled={
+              isOrderPlaced ||
               !isAcknowledged ||
               (addressesDiffer && !addressMismatchAcknowledged) ||
               (paymentMethod === "card" && !isCardValid)
@@ -325,15 +406,24 @@ export default function Checkout({
           >
             Place Order
           </Button>
-          {isSuccessOpen && (
-            <SuccessForm
-              isOpen={isSuccessOpen}
-              onClose={() => setIsSuccessOpen(false)}
-              title="Order Placed"
-              message={`Your order has been placed successfully. You should shortly receive a confirmation email and SMS text with your order details.`}
-              fadeOutOpts={{ autoFadeOut: false }}
-            />
-          )}
+          <SuccessForm
+            isOpen={isSuccessOpen}
+            onClose={() => {
+              setIsSuccessOpen(false);
+              if (!isOrderSuccess) {
+                setIsOrderPlaced(false); // Allow retry on failure
+              }
+            }}
+            title={isOrderSuccess ? "Order Placed" : "Order Failed"}
+            message={
+              isOrderSuccess
+                ? `Your order has been placed successfully. You should shortly receive a confirmation email and SMS text with your order details.`
+                : `Your order has failed to be placed. Please try again.`
+            }
+            isSuccess={isOrderSuccess}
+            fadeOutOpts={{ autoFadeOut: false }}
+            isLoading={isLoading}
+          />
         </div>
       </CardBody>
     </Card>
