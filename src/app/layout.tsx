@@ -42,11 +42,6 @@ export default function RootLayout({
       >
         <Providers themeProps={{ attribute: "class", defaultTheme: "dark" }}>
           <div className="relative flex flex-col h-screen">
-            <nav className="p-4">
-              <Link href="/order" className="text-blue-500 hover:underline">
-                Enter Order ID
-              </Link>
-            </nav>
             <main className="container mx-auto max-w-7xl py-16 px-6 flex-grow content-center">
               {children}
             </main>

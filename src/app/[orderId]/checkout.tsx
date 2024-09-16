@@ -17,7 +17,13 @@ import CardDetailsForm from "@/components/form/card-details-form";
 import AddressForm from "@/components/form/address-form";
 import SuccessForm from "@/components/form/success-form";
 
-export default function Checkout({ orderData }: { orderData: OrderData }) {
+export default function Checkout({
+  orderData,
+  onPayment,
+}: {
+  orderData: OrderData;
+  onPayment: (paymentDetails: any) => Promise<void>;
+}) {
   const [paymentMethod, setPaymentMethod] = useState("card");
   const [isCardValid, setIsCardValid] = useState(false);
   const [shippingAddress, setShippingAddress] = useState({
@@ -78,6 +84,36 @@ export default function Checkout({ orderData }: { orderData: OrderData }) {
 
   const handleBillingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setBillingAddress({ ...billingAddress, [e.target.name]: e.target.value });
+  };
+
+  const handlePlaceOrder = async () => {
+    if (paymentMethod === "card" && !isCardValid) {
+      console.log("Please correct the card information");
+    } else {
+      try {
+        const paymentDetails = {
+          // Collect necessary payment details
+          method: paymentMethod,
+          card:
+            paymentMethod === "card"
+              ? {
+                  /* card details */
+                }
+              : undefined,
+          shippingAddress,
+          billingAddress: sameAsShipping ? shippingAddress : billingAddress,
+          tipAmount,
+          total: orderData.order.subtotal + serviceFee + tipAmount,
+        };
+
+        const result = await onPayment(paymentDetails);
+        console.log("Order placed successfully", result);
+        setIsSuccessOpen(true);
+      } catch (error) {
+        console.error("Failed to place order", error);
+        // Handle error (show error message to user)
+      }
+    }
   };
 
   const addressesDiffer =
@@ -285,15 +321,7 @@ export default function Checkout({ orderData }: { orderData: OrderData }) {
               (addressesDiffer && !addressMismatchAcknowledged) ||
               (paymentMethod === "card" && !isCardValid)
             }
-            onPress={() => {
-              if (paymentMethod === "card" && !isCardValid) {
-                console.log("Please correct the card information");
-              } else {
-                // Proceed with order placement
-                console.log("Order placed successfully");
-                setIsSuccessOpen(true);
-              }
-            }}
+            onPress={handlePlaceOrder}
           >
             Place Order
           </Button>
