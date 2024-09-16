@@ -230,7 +230,7 @@ export default function Checkout({
       <CardHeader className="flex-col items-start">
         <h2 className="text-2xl font-bold">Complete Your Purchase</h2>
         <p className="text-sm text-gray-500">
-          You're purchasing from{" "}
+          You&apos;re purchasing from{" "}
           <span className="font-semibold">{orderData.merchant.name}</span> via
           Backpack
         </p>
