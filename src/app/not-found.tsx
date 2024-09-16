@@ -8,7 +8,7 @@ export default function NotFound() {
       <Card className="p-4 px-4 text-center">
         <h1 className="text-4xl font-bold mb-4">Page Not Found</h1>
         <p className="text-xl mb-8">
-          The order you're looking for doesn't exist.
+          The order you&apos;re looking for doesn&apos;t exist.
         </p>
         <Button as={Link} href="/" color="primary">
           Go Home
